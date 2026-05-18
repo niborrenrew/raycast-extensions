@@ -16,10 +16,10 @@ import { useEffect, useState } from "react";
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const DEFAULT_FOLDERS = [
   {
     name: "Desktop",
@@ -105,12 +105,24 @@ export default function Command() {
     setIsSearching(true);
     const delayDebounceFn = setTimeout(async () => {
       try {
-        const safeQuery = searchText.replace(/"/g, "");
-        const command = `mdfind -onlyin ~ 'kMDItemContentType == "public.folder" && kMDItemDisplayName == "*${safeQuery}*"cd' | grep -v '/Library/' | grep -v 'node_modules' | grep -v '\\.git' | head -n 15`;
-        const { stdout } = await execAsync(command);
-        const paths = stdout.split("\n").filter(Boolean);
+        const safeQuery = searchText.replace(/["']/g, "");
+        const predicate = `kMDItemContentType == "public.folder" && kMDItemDisplayName == "*${safeQuery}*"cd`;
+        const { stdout } = await execFileAsync("mdfind", [
+          "-onlyin",
+          os.homedir(),
+          predicate,
+        ]);
+        const allPaths = stdout.split("\n").filter(Boolean);
+        const filteredPaths = allPaths
+          .filter(
+            (p) =>
+              !p.includes("/Library/") &&
+              !p.includes("node_modules") &&
+              !p.includes(".git"),
+          )
+          .slice(0, 15);
         setSearchResults(
-          paths.map((p) => ({ name: path.basename(p), path: p })),
+          filteredPaths.map((p) => ({ name: path.basename(p), path: p })),
         );
       } catch {
         setSearchResults([]);
