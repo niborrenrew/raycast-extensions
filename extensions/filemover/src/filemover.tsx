@@ -53,10 +53,22 @@ export default function Command() {
       }
 
       const storedFavorites = await LocalStorage.getItem<string>("favorites");
-      if (storedFavorites) setFavorites(JSON.parse(storedFavorites));
+      if (storedFavorites) {
+        try {
+          setFavorites(JSON.parse(storedFavorites));
+        } catch {
+          await LocalStorage.removeItem("favorites");
+        }
+      }
 
       const storedRecents = await LocalStorage.getItem<string>("recents");
-      if (storedRecents) setRecents(JSON.parse(storedRecents));
+      if (storedRecents) {
+        try {
+          setRecents(JSON.parse(storedRecents));
+        } catch {
+          await LocalStorage.removeItem("recents");
+        }
+      }
 
       setIsLoading(false);
     }
