@@ -40,16 +40,12 @@ const DEFAULT_FOLDERS = [
 
 export default function Command() {
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
-  const [favorites, setFavorites] = useState<{ name: string; path: string }[]>(
-    [],
-  );
+  const [favorites, setFavorites] = useState<{ name: string; path: string }[]>([]);
   const [recents, setRecents] = useState<{ name: string; path: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [searchText, setSearchText] = useState("");
-  const [searchResults, setSearchResults] = useState<
-    { name: string; path: string }[]
-  >([]);
+  const [searchResults, setSearchResults] = useState<{ name: string; path: string }[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
@@ -106,24 +102,18 @@ export default function Command() {
     const delayDebounceFn = setTimeout(async () => {
       try {
         const safeQuery = searchText.replace(/["']/g, "");
+        if (!safeQuery) {
+          setSearchResults([]);
+          setIsSearching(false);
+          return;
+        }
         const predicate = `kMDItemContentType == "public.folder" && kMDItemDisplayName == "*${safeQuery}*"cd`;
-        const { stdout } = await execFileAsync("mdfind", [
-          "-onlyin",
-          os.homedir(),
-          predicate,
-        ]);
+        const { stdout } = await execFileAsync("mdfind", ["-onlyin", os.homedir(), predicate]);
         const allPaths = stdout.split("\n").filter(Boolean);
         const filteredPaths = allPaths
-          .filter(
-            (p) =>
-              !p.includes("/Library/") &&
-              !p.includes("node_modules") &&
-              !p.includes(".git"),
-          )
+          .filter((p) => !p.includes("/Library/") && !p.includes("node_modules") && !p.includes(".git"))
           .slice(0, 15);
-        setSearchResults(
-          filteredPaths.map((p) => ({ name: path.basename(p), path: p })),
-        );
+        setSearchResults(filteredPaths.map((p) => ({ name: path.basename(p), path: p })));
       } catch {
         setSearchResults([]);
       } finally {
@@ -136,19 +126,12 @@ export default function Command() {
 
   async function updateRecents(folderName: string, folderPath: string) {
     const filtered = recents.filter((r) => r.path !== folderPath);
-    const updated = [{ name: folderName, path: folderPath }, ...filtered].slice(
-      0,
-      5,
-    );
+    const updated = [{ name: folderName, path: folderPath }, ...filtered].slice(0, 5);
     setRecents(updated);
     await LocalStorage.setItem("recents", JSON.stringify(updated));
   }
 
-  async function safeMoveOrCopy(
-    files: string[],
-    destFolder: string,
-    isCopy: boolean,
-  ) {
+  async function safeMoveOrCopy(files: string[], destFolder: string, isCopy: boolean) {
     if (!fs.existsSync(destFolder)) {
       await fs.promises.mkdir(destFolder, { recursive: true });
     }
@@ -183,9 +166,7 @@ export default function Command() {
               try {
                 await fs.promises.rm(src, { recursive: true });
               } catch (rmError) {
-                throw new Error(
-                  `File copied to destination, but failed to remove original: ${rmError}`,
-                );
+                throw new Error(`File copied to destination, but failed to remove original: ${rmError}`);
               }
             } else {
               throw e;
@@ -203,11 +184,7 @@ export default function Command() {
     }
   }
 
-  async function handleAction(
-    destinationPath: string,
-    folderName: string,
-    isCopy: boolean,
-  ) {
+  async function handleAction(destinationPath: string, folderName: string, isCopy: boolean) {
     if (selectedFiles.length === 0) {
       await showToast({
         style: Toast.Style.Failure,
@@ -250,8 +227,7 @@ export default function Command() {
   }
 
   const fileCount = selectedFiles.length;
-  const subtitle =
-    fileCount > 0 ? `${fileCount} file(s) selected` : "No files selected";
+  const subtitle = fileCount > 0 ? `${fileCount} file(s) selected` : "No files selected";
 
   const detailMarkdown =
     selectedFiles.length > 0
@@ -292,16 +268,12 @@ export default function Command() {
                       <Action
                         title="Move Files Here"
                         icon={Icon.ArrowRight}
-                        onAction={() =>
-                          handleAction(folder.path, folder.name, false)
-                        }
+                        onAction={() => handleAction(folder.path, folder.name, false)}
                       />
                       <Action
                         title="Copy Files Here"
                         icon={Icon.CopyClipboard}
-                        onAction={() =>
-                          handleAction(folder.path, folder.name, true)
-                        }
+                        onAction={() => handleAction(folder.path, folder.name, true)}
                         shortcut={{ modifiers: ["cmd"], key: "d" }}
                       />
                     </ActionPanel>
@@ -325,16 +297,12 @@ export default function Command() {
                       <Action
                         title="Move Files Here"
                         icon={Icon.ArrowRight}
-                        onAction={() =>
-                          handleAction(folder.path, folder.name, false)
-                        }
+                        onAction={() => handleAction(folder.path, folder.name, false)}
                       />
                       <Action
                         title="Copy Files Here"
                         icon={Icon.CopyClipboard}
-                        onAction={() =>
-                          handleAction(folder.path, folder.name, true)
-                        }
+                        onAction={() => handleAction(folder.path, folder.name, true)}
                         shortcut={{ modifiers: ["cmd"], key: "d" }}
                       />
                       <Action.Push
@@ -346,9 +314,7 @@ export default function Command() {
                       <Action.Push
                         title="Move to Custom Folder…"
                         icon={Icon.Folder}
-                        target={
-                          <MoveToCustomFolderForm onAction={handleAction} />
-                        }
+                        target={<MoveToCustomFolderForm onAction={handleAction} />}
                         shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
                       />
                     </ActionPanel>
@@ -358,10 +324,7 @@ export default function Command() {
             </List.Section>
           )}
 
-          <List.Section
-            title="Favorites"
-            subtitle={recents.length === 0 ? subtitle : ""}
-          >
+          <List.Section title="Favorites" subtitle={recents.length === 0 ? subtitle : ""}>
             {favorites.map((fav, index) => (
               <List.Item
                 key={`fav-${index}`}
@@ -391,9 +354,7 @@ export default function Command() {
                     <Action.Push
                       title="Move to Custom Folder…"
                       icon={Icon.Folder}
-                      target={
-                        <MoveToCustomFolderForm onAction={handleAction} />
-                      }
+                      target={<MoveToCustomFolderForm onAction={handleAction} />}
                       shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
                     />
                     <Action.Push
@@ -428,16 +389,12 @@ export default function Command() {
                     <Action
                       title="Move Files Here"
                       icon={Icon.ArrowRight}
-                      onAction={() =>
-                        handleAction(folder.path, folder.name, false)
-                      }
+                      onAction={() => handleAction(folder.path, folder.name, false)}
                     />
                     <Action
                       title="Copy Files Here"
                       icon={Icon.CopyClipboard}
-                      onAction={() =>
-                        handleAction(folder.path, folder.name, true)
-                      }
+                      onAction={() => handleAction(folder.path, folder.name, true)}
                       shortcut={{ modifiers: ["cmd"], key: "d" }}
                     />
                     <Action.Push
@@ -449,9 +406,7 @@ export default function Command() {
                     <Action.Push
                       title="Move to Custom Folder…"
                       icon={Icon.Folder}
-                      target={
-                        <MoveToCustomFolderForm onAction={handleAction} />
-                      }
+                      target={<MoveToCustomFolderForm onAction={handleAction} />}
                       shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
                     />
                     <Action.Push
@@ -530,11 +485,7 @@ function AddFavoriteForm({ onAddFavorite }: AddFavoriteFormProps) {
 }
 
 interface MoveToCustomFolderFormProps {
-  onAction: (
-    destinationPath: string,
-    folderName: string,
-    isCopy: boolean,
-  ) => Promise<void>;
+  onAction: (destinationPath: string, folderName: string, isCopy: boolean) => Promise<void>;
 }
 
 function MoveToCustomFolderForm({ onAction }: MoveToCustomFolderFormProps) {
@@ -549,11 +500,7 @@ function MoveToCustomFolderForm({ onAction }: MoveToCustomFolderFormProps) {
             onSubmit={async (values: { folder: string[]; copy: boolean }) => {
               if (values.folder.length > 0) {
                 const targetFolder = values.folder[0];
-                await onAction(
-                  targetFolder,
-                  path.basename(targetFolder),
-                  values.copy,
-                );
+                await onAction(targetFolder, path.basename(targetFolder), values.copy);
                 pop();
               } else {
                 await showToast({
@@ -573,21 +520,13 @@ function MoveToCustomFolderForm({ onAction }: MoveToCustomFolderFormProps) {
         canChooseDirectories={true}
         canChooseFiles={false}
       />
-      <Form.Checkbox
-        id="copy"
-        label="Copy instead of move"
-        defaultValue={false}
-      />
+      <Form.Checkbox id="copy" label="Copy instead of move" defaultValue={false} />
     </Form>
   );
 }
 
 interface MoveToNewFolderFormProps {
-  onAction: (
-    destinationPath: string,
-    folderName: string,
-    isCopy: boolean,
-  ) => Promise<void>;
+  onAction: (destinationPath: string, folderName: string, isCopy: boolean) => Promise<void>;
 }
 
 function MoveToNewFolderForm({ onAction }: MoveToNewFolderFormProps) {
@@ -599,11 +538,7 @@ function MoveToNewFolderForm({ onAction }: MoveToNewFolderFormProps) {
         <ActionPanel>
           <Action.SubmitForm
             title="Create & Move/Copy Files"
-            onSubmit={async (values: {
-              name: string;
-              parentFolder: string[];
-              copy: boolean;
-            }) => {
+            onSubmit={async (values: { name: string; parentFolder: string[]; copy: boolean }) => {
               if (values.name && values.parentFolder.length > 0) {
                 const safeName = path.basename(values.name);
                 if (!safeName) {
@@ -613,10 +548,7 @@ function MoveToNewFolderForm({ onAction }: MoveToNewFolderFormProps) {
                   });
                   return;
                 }
-                const newFolderPath = path.join(
-                  values.parentFolder[0],
-                  safeName,
-                );
+                const newFolderPath = path.join(values.parentFolder[0], safeName);
                 await onAction(newFolderPath, values.name, values.copy);
                 pop();
               } else {
@@ -630,11 +562,7 @@ function MoveToNewFolderForm({ onAction }: MoveToNewFolderFormProps) {
         </ActionPanel>
       }
     >
-      <Form.TextField
-        id="name"
-        title="New Folder Name"
-        placeholder="e.g. New Project"
-      />
+      <Form.TextField id="name" title="New Folder Name" placeholder="e.g. New Project" />
       <Form.FilePicker
         id="parentFolder"
         title="Location"
@@ -643,11 +571,7 @@ function MoveToNewFolderForm({ onAction }: MoveToNewFolderFormProps) {
         canChooseFiles={false}
         defaultValue={[path.join(os.homedir(), "Desktop")]}
       />
-      <Form.Checkbox
-        id="copy"
-        label="Copy instead of move"
-        defaultValue={false}
-      />
+      <Form.Checkbox id="copy" label="Copy instead of move" defaultValue={false} />
     </Form>
   );
 }
