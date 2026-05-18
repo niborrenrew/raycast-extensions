@@ -429,14 +429,14 @@ function MoveToCustomFolderForm({ onAction }: MoveToCustomFolderFormProps) {
       actions={
         <ActionPanel>
           <Action.SubmitForm
-            title="Move Files"
-            onSubmit={async (values: { folder: string[] }) => {
+            title="Move / Copy Files"
+            onSubmit={async (values: { folder: string[]; copy: boolean }) => {
               if (values.folder.length > 0) {
                 const targetFolder = values.folder[0];
                 await onAction(
                   targetFolder,
                   path.basename(targetFolder),
-                  false,
+                  values.copy,
                 );
                 pop();
               }
@@ -451,6 +451,11 @@ function MoveToCustomFolderForm({ onAction }: MoveToCustomFolderFormProps) {
         allowMultipleSelection={false}
         canChooseDirectories={true}
         canChooseFiles={false}
+      />
+      <Form.Checkbox
+        id="copy"
+        label="Copy instead of move"
+        defaultValue={false}
       />
     </Form>
   );
@@ -472,17 +477,18 @@ function MoveToNewFolderForm({ onAction }: MoveToNewFolderFormProps) {
       actions={
         <ActionPanel>
           <Action.SubmitForm
-            title="Create & Move Files"
+            title="Create & Move/Copy Files"
             onSubmit={async (values: {
               name: string;
               parentFolder: string[];
+              copy: boolean;
             }) => {
               if (values.name && values.parentFolder.length > 0) {
                 const newFolderPath = path.join(
                   values.parentFolder[0],
                   values.name,
                 );
-                await onAction(newFolderPath, values.name, false);
+                await onAction(newFolderPath, values.name, values.copy);
                 pop();
               } else {
                 await showToast({
@@ -507,6 +513,11 @@ function MoveToNewFolderForm({ onAction }: MoveToNewFolderFormProps) {
         canChooseDirectories={true}
         canChooseFiles={false}
         defaultValue={[path.join(os.homedir(), "Desktop")]}
+      />
+      <Form.Checkbox
+        id="copy"
+        label="Copy instead of move"
+        defaultValue={false}
       />
     </Form>
   );
