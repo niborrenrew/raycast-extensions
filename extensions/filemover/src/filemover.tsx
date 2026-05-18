@@ -461,6 +461,11 @@ function MoveToCustomFolderForm({ onAction }: MoveToCustomFolderFormProps) {
                   values.copy,
                 );
                 pop();
+              } else {
+                await showToast({
+                  style: Toast.Style.Failure,
+                  title: "Please select a destination folder",
+                });
               }
             }}
           />
