@@ -16,7 +16,10 @@ import { useEffect, useState } from "react";
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
+import { exec } from "child_process";
+import { promisify } from "util";
 
+const execAsync = promisify(exec);
 const DEFAULT_FOLDERS = [
   {
     name: "Desktop",
@@ -43,14 +46,28 @@ export default function Command() {
   const [recents, setRecents] = useState<{ name: string; path: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [searchText, setSearchText] = useState("");
+  const [searchResults, setSearchResults] = useState<
+    { name: string; path: string }[]
+  >([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   useEffect(() => {
-    async function init() {
+    async function fetchSelectedFiles() {
       try {
         const items = await getSelectedFinderItems();
-        setSelectedFiles(items.map((item) => item.path));
+        const paths = items.map((item) => item.path);
+        setSelectedFiles((prev) => {
+          if (JSON.stringify(prev) !== JSON.stringify(paths)) return paths;
+          return prev;
+        });
       } catch {
-        // No files selected or not in Finder
+        setSelectedFiles((prev) => (prev.length > 0 ? [] : prev));
       }
+    }
+
+    async function init() {
+      await fetchSelectedFiles();
 
       const storedFavorites = await LocalStorage.getItem<string>("favorites");
       if (storedFavorites) {
@@ -73,7 +90,37 @@ export default function Command() {
       setIsLoading(false);
     }
     init();
+
+    const syncInterval = setInterval(fetchSelectedFiles, 1000);
+    return () => clearInterval(syncInterval);
   }, []);
+
+  useEffect(() => {
+    if (searchText.length < 3) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const safeQuery = searchText.replace(/"/g, "");
+        const command = `mdfind -onlyin ~ 'kMDItemContentType == "public.folder" && kMDItemDisplayName == "*${safeQuery}*"cd' | grep -v '/Library/' | grep -v 'node_modules' | grep -v '\\.git' | head -n 15`;
+        const { stdout } = await execAsync(command);
+        const paths = stdout.split("\n").filter(Boolean);
+        setSearchResults(
+          paths.map((p) => ({ name: path.basename(p), path: p })),
+        );
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchText]);
 
   async function updateRecents(folderName: string, folderPath: string) {
     const filtered = recents.filter((r) => r.path !== folderPath);
@@ -203,8 +250,10 @@ export default function Command() {
 
   return (
     <List
-      isLoading={isLoading}
-      searchBarPlaceholder="Search directories..."
+      isLoading={isLoading || isSearching}
+      searchText={searchText}
+      onSearchTextChange={setSearchText}
+      searchBarPlaceholder="Search lists or find directories..."
       isShowingDetail={fileCount > 0}
     >
       {fileCount === 0 && (
@@ -217,6 +266,39 @@ export default function Command() {
 
       {fileCount > 0 && (
         <>
+          {searchResults.length > 0 && (
+            <List.Section title="Search Results">
+              {searchResults.map((folder, index) => (
+                <List.Item
+                  key={`search-${index}`}
+                  title={folder.name}
+                  subtitle={folder.path}
+                  icon={Icon.MagnifyingGlass}
+                  detail={<List.Item.Detail markdown={detailMarkdown} />}
+                  actions={
+                    <ActionPanel>
+                      <Action
+                        title="Move Files Here"
+                        icon={Icon.ArrowRight}
+                        onAction={() =>
+                          handleAction(folder.path, folder.name, false)
+                        }
+                      />
+                      <Action
+                        title="Copy Files Here"
+                        icon={Icon.CopyClipboard}
+                        onAction={() =>
+                          handleAction(folder.path, folder.name, true)
+                        }
+                        shortcut={{ modifiers: ["cmd"], key: "d" }}
+                      />
+                    </ActionPanel>
+                  }
+                />
+              ))}
+            </List.Section>
+          )}
+
           {recents.length > 0 && (
             <List.Section title="Recent Folders" subtitle={subtitle}>
               {recents.map((folder, index) => (
