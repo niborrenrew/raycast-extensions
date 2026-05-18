@@ -605,9 +605,17 @@ function MoveToNewFolderForm({ onAction }: MoveToNewFolderFormProps) {
               copy: boolean;
             }) => {
               if (values.name && values.parentFolder.length > 0) {
+                const safeName = path.basename(values.name);
+                if (!safeName) {
+                  await showToast({
+                    style: Toast.Style.Failure,
+                    title: "Invalid folder name",
+                  });
+                  return;
+                }
                 const newFolderPath = path.join(
                   values.parentFolder[0],
-                  values.name,
+                  safeName,
                 );
                 await onAction(newFolderPath, values.name, values.copy);
                 pop();
