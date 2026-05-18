@@ -94,42 +94,52 @@ export default function Command() {
       await fs.promises.mkdir(destFolder, { recursive: true });
     }
 
+    let processedCount = 0;
     for (const src of files) {
-      const basename = path.basename(src);
-      let safeName = basename;
-      let counter = 1;
-      let destPath = path.join(destFolder, safeName);
+      try {
+        const basename = path.basename(src);
+        let safeName = basename;
+        let counter = 1;
+        let destPath = path.join(destFolder, safeName);
 
-      if (src === destPath) continue;
+        if (src === destPath) continue;
 
-      while (fs.existsSync(destPath)) {
-        const ext = path.extname(basename);
-        const name = path.basename(basename, ext);
-        safeName = `${name} (${counter})${ext}`;
-        destPath = path.join(destFolder, safeName);
-        counter++;
-      }
+        while (fs.existsSync(destPath)) {
+          const ext = path.extname(basename);
+          const name = path.basename(basename, ext);
+          safeName = `${name} (${counter})${ext}`;
+          destPath = path.join(destFolder, safeName);
+          counter++;
+        }
 
-      if (isCopy) {
-        await fs.promises.cp(src, destPath, { recursive: true });
-      } else {
-        try {
-          await fs.promises.rename(src, destPath);
-        } catch (error) {
-          const e = error as NodeJS.ErrnoException;
-          if (e.code === "EXDEV") {
-            await fs.promises.cp(src, destPath, { recursive: true });
-            try {
-              await fs.promises.rm(src, { recursive: true });
-            } catch (rmError) {
-              throw new Error(
-                `File copied to destination, but failed to remove original: ${rmError}`,
-              );
+        if (isCopy) {
+          await fs.promises.cp(src, destPath, { recursive: true });
+        } else {
+          try {
+            await fs.promises.rename(src, destPath);
+          } catch (error) {
+            const e = error as NodeJS.ErrnoException;
+            if (e.code === "EXDEV") {
+              await fs.promises.cp(src, destPath, { recursive: true });
+              try {
+                await fs.promises.rm(src, { recursive: true });
+              } catch (rmError) {
+                throw new Error(
+                  `File copied to destination, but failed to remove original: ${rmError}`,
+                );
+              }
+            } else {
+              throw e;
             }
-          } else {
-            throw e;
           }
         }
+        processedCount++;
+      } catch (e) {
+        throw new Error(
+          `Partial failure: ${processedCount} of ${files.length} files successfully processed before error. Check destination folder. Underlying error: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        );
       }
     }
   }
