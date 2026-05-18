@@ -88,6 +88,8 @@ export default function Command() {
       let counter = 1;
       let destPath = path.join(destFolder, safeName);
 
+      if (src === destPath) continue;
+
       while (fs.existsSync(destPath)) {
         const ext = path.extname(basename);
         const name = path.basename(basename, ext);
