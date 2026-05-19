@@ -22,7 +22,7 @@
     "prettier": "^3.5.3",
     "typescript": "^5.8.2"
   },
-  "icon": "icon.png",
+  "icon": "icon-v2.png",
   "commands": [
     {
       "name": "filemover",
