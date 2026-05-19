@@ -265,95 +265,7 @@ export default function Command() {
     );
   }
 
-  function FolderActionPanel({ folder, isRecent }: { folder: { name: string; path: string }; isRecent?: boolean }) {
-    if (fileCount === 0) {
-      return (
-        <ActionPanel>
-          <Action.Push
-            title="Add to Favorites"
-            icon={Icon.Star}
-            target={<AddFavoriteForm onAddFavorite={addFavorite} />}
-          />
-          <Action.Push
-            title="Move to Custom Folder…"
-            icon={Icon.Folder}
-            target={<MoveToCustomFolderForm onAction={handleAction} />}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
-          />
-          {favorites.some((f) => f.path === folder.path) && (
-            <Action
-              title="Remove from Favorites"
-              icon={Icon.Trash}
-              onAction={() => removeFavorite(folder.path)}
-              style={Action.Style.Destructive}
-              shortcut={{ modifiers: ["ctrl"], key: "x" }}
-            />
-          )}
-          {isRecent && (
-            <Action
-              title="Clear All Recents"
-              icon={Icon.Trash}
-              onAction={clearRecents}
-              style={Action.Style.Destructive}
-              shortcut={{ modifiers: ["ctrl", "shift"], key: "x" }}
-            />
-          )}
-        </ActionPanel>
-      );
-    }
-
-    return (
-      <ActionPanel>
-        <Action
-          title="Move Files Here"
-          icon={Icon.ArrowRight}
-          onAction={() => handleAction(folder.path, folder.name, false)}
-        />
-        <Action
-          title="Copy Files Here"
-          icon={Icon.CopyClipboard}
-          onAction={() => handleAction(folder.path, folder.name, true)}
-          shortcut={{ modifiers: ["cmd"], key: "d" }}
-        />
-        <Action.Push
-          title="Move to New Folder…"
-          icon={Icon.NewFolder}
-          target={<MoveToNewFolderForm onAction={handleAction} />}
-          shortcut={{ modifiers: ["cmd"], key: "n" }}
-        />
-        <Action.Push
-          title="Move to Custom Folder…"
-          icon={Icon.Folder}
-          target={<MoveToCustomFolderForm onAction={handleAction} />}
-          shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
-        />
-        <Action.Push
-          title="Add to Favorites"
-          icon={Icon.Star}
-          target={<AddFavoriteForm onAddFavorite={addFavorite} />}
-          shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
-        />
-        {favorites.some((f) => f.path === folder.path) && (
-          <Action
-            title="Remove from Favorites"
-            icon={Icon.Trash}
-            onAction={() => removeFavorite(folder.path)}
-            style={Action.Style.Destructive}
-            shortcut={{ modifiers: ["ctrl"], key: "x" }}
-          />
-        )}
-        {isRecent && (
-          <Action
-            title="Clear All Recents"
-            icon={Icon.Trash}
-            onAction={clearRecents}
-            style={Action.Style.Destructive}
-            shortcut={{ modifiers: ["ctrl", "shift"], key: "x" }}
-          />
-        )}
-      </ActionPanel>
-    );
-  }
+  // FolderActionPanel has been extracted to module level to avoid re-mounting on every render
 
   return (
     <List
@@ -388,7 +300,17 @@ export default function Command() {
                   icon={Icon.Folder}
                   accessories={[{ text: path.dirname(folder.path), tooltip: folder.path }]}
                   detail={getFolderDetail(folder.path)}
-                  actions={<FolderActionPanel folder={folder} />}
+                  actions={
+                    <FolderActionPanel
+                      folder={folder}
+                      fileCount={fileCount}
+                      favorites={favorites}
+                      onAddFavorite={addFavorite}
+                      onRemoveFavorite={removeFavorite}
+                      onClearRecents={clearRecents}
+                      onAction={handleAction}
+                    />
+                  }
                 />
               ))}
             </List.Section>
@@ -403,7 +325,17 @@ export default function Command() {
                 icon={Icon.Star}
                 accessories={[{ text: path.dirname(fav.path), tooltip: fav.path }]}
                 detail={getFolderDetail(fav.path)}
-                actions={<FolderActionPanel folder={fav} />}
+                actions={
+                  <FolderActionPanel
+                    folder={fav}
+                    fileCount={fileCount}
+                    favorites={favorites}
+                    onAddFavorite={addFavorite}
+                    onRemoveFavorite={removeFavorite}
+                    onClearRecents={clearRecents}
+                    onAction={handleAction}
+                  />
+                }
               />
             ))}
           </List.Section>
@@ -418,7 +350,18 @@ export default function Command() {
                   icon={Icon.Clock}
                   accessories={[{ text: path.dirname(folder.path), tooltip: folder.path }]}
                   detail={getFolderDetail(folder.path)}
-                  actions={<FolderActionPanel folder={folder} isRecent={true} />}
+                  actions={
+                    <FolderActionPanel
+                      folder={folder}
+                      isRecent={true}
+                      fileCount={fileCount}
+                      favorites={favorites}
+                      onAddFavorite={addFavorite}
+                      onRemoveFavorite={removeFavorite}
+                      onClearRecents={clearRecents}
+                      onAction={handleAction}
+                    />
+                  }
                 />
               ))}
             </List.Section>
@@ -490,7 +433,117 @@ export default function Command() {
   );
 }
 
-// Extracted Forms to module level to prevent re-mounting on every render
+// Extracted FolderActionPanel & Forms to module level to prevent re-mounting on every render
+
+interface FolderActionPanelProps {
+  folder: { name: string; path: string };
+  isRecent?: boolean;
+  fileCount: number;
+  favorites: { name: string; path: string }[];
+  onAddFavorite: (name: string, folderPath: string) => Promise<void>;
+  onRemoveFavorite: (folderPath: string) => Promise<void>;
+  onClearRecents: () => Promise<void>;
+  onAction: (destinationPath: string, folderName: string, isCopy: boolean) => Promise<void>;
+}
+
+function FolderActionPanel({
+  folder,
+  isRecent,
+  fileCount,
+  favorites,
+  onAddFavorite,
+  onRemoveFavorite,
+  onClearRecents,
+  onAction,
+}: FolderActionPanelProps) {
+  if (fileCount === 0) {
+    return (
+      <ActionPanel>
+        <Action.Push
+          title="Add to Favorites"
+          icon={Icon.Star}
+          target={<AddFavoriteForm onAddFavorite={onAddFavorite} />}
+        />
+        <Action.Push
+          title="Move to Custom Folder…"
+          icon={Icon.Folder}
+          target={<MoveToCustomFolderForm onAction={onAction} />}
+          shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
+        />
+        {favorites.some((f) => f.path === folder.path) && (
+          <Action
+            title="Remove from Favorites"
+            icon={Icon.Trash}
+            onAction={() => onRemoveFavorite(folder.path)}
+            style={Action.Style.Destructive}
+            shortcut={{ modifiers: ["ctrl"], key: "x" }}
+          />
+        )}
+        {isRecent && (
+          <Action
+            title="Clear All Recents"
+            icon={Icon.Trash}
+            onAction={onClearRecents}
+            style={Action.Style.Destructive}
+            shortcut={{ modifiers: ["ctrl", "shift"], key: "x" }}
+          />
+        )}
+      </ActionPanel>
+    );
+  }
+
+  return (
+    <ActionPanel>
+      <Action
+        title="Move Files Here"
+        icon={Icon.ArrowRight}
+        onAction={() => onAction(folder.path, folder.name, false)}
+      />
+      <Action
+        title="Copy Files Here"
+        icon={Icon.CopyClipboard}
+        onAction={() => onAction(folder.path, folder.name, true)}
+        shortcut={{ modifiers: ["cmd"], key: "d" }}
+      />
+      <Action.Push
+        title="Move to New Folder…"
+        icon={Icon.NewFolder}
+        target={<MoveToNewFolderForm onAction={onAction} />}
+        shortcut={{ modifiers: ["cmd"], key: "n" }}
+      />
+      <Action.Push
+        title="Move to Custom Folder…"
+        icon={Icon.Folder}
+        target={<MoveToCustomFolderForm onAction={onAction} />}
+        shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
+      />
+      <Action.Push
+        title="Add to Favorites"
+        icon={Icon.Star}
+        target={<AddFavoriteForm onAddFavorite={onAddFavorite} />}
+        shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+      />
+      {favorites.some((f) => f.path === folder.path) && (
+        <Action
+          title="Remove from Favorites"
+          icon={Icon.Trash}
+          onAction={() => onRemoveFavorite(folder.path)}
+          style={Action.Style.Destructive}
+          shortcut={{ modifiers: ["ctrl"], key: "x" }}
+        />
+      )}
+      {isRecent && (
+        <Action
+          title="Clear All Recents"
+          icon={Icon.Trash}
+          onAction={onClearRecents}
+          style={Action.Style.Destructive}
+          shortcut={{ modifiers: ["ctrl", "shift"], key: "x" }}
+        />
+      )}
+    </ActionPanel>
+  );
+}
 
 interface AddFavoriteFormProps {
   onAddFavorite: (name: string, folderPath: string) => Promise<void>;
@@ -589,7 +642,7 @@ function MoveToNewFolderForm({ onAction }: MoveToNewFolderFormProps) {
             onSubmit={async (values: { name: string; parentFolder: string[]; copy: boolean }) => {
               if (values.name && values.parentFolder.length > 0) {
                 const safeName = path.basename(values.name);
-                if (!safeName) {
+                if (!safeName || safeName === "." || safeName === "..") {
                   await showToast({
                     style: Toast.Style.Failure,
                     title: "Invalid folder name",
