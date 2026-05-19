@@ -1,7 +1,7 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "filemover",
-  "description": "Moves selected Files to defined directory",
+  "description": "Move or copy selected Finder items to favorites, recents, or custom folders.",
   "license": "MIT",
   "scripts": {
     "dev": "ray develop",
@@ -26,13 +26,12 @@
   "commands": [
     {
       "name": "filemover",
-      "title": "Filemover",
-      "description": "Moves selected Files",
-      "mode": "view",
-      "subtitle": "Moves selected Files"
+      "title": "Move Files",
+      "description": "Move or copy currently selected Finder items to a specific directory.",
+      "mode": "view"
     }
   ],
-  "title": "Filemover",
+  "title": "File Mover",
   "author": "robinwerner",
   "platforms": [
     "macOS"
