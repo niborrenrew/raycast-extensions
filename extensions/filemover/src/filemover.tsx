@@ -47,6 +47,7 @@ export default function Command() {
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState<{ name: string; path: string }[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState<string | undefined>();
 
   useEffect(() => {
     async function fetchSelectedFiles() {
@@ -77,7 +78,8 @@ export default function Command() {
       const storedRecents = await LocalStorage.getItem<string>("recents");
       if (storedRecents) {
         try {
-          setRecents(JSON.parse(storedRecents));
+          const parsedRecents = JSON.parse(storedRecents);
+          setRecents(parsedRecents.slice(0, 4));
         } catch {
           await LocalStorage.removeItem("recents");
         }
@@ -105,6 +107,7 @@ export default function Command() {
         if (!safeQuery) {
           setSearchResults([]);
           setIsSearching(false);
+          setSelectedItemId(undefined);
           return;
         }
         const predicate = `kMDItemContentType == "public.folder" && kMDItemDisplayName == "*${safeQuery}*"cd`;
@@ -113,9 +116,16 @@ export default function Command() {
         const filteredPaths = allPaths
           .filter((p) => !p.includes("/Library/") && !p.includes("node_modules") && !p.includes(".git"))
           .slice(0, 15);
-        setSearchResults(filteredPaths.map((p) => ({ name: path.basename(p), path: p })));
+        const newResults = filteredPaths.map((p) => ({ name: path.basename(p), path: p }));
+        setSearchResults(newResults);
+        if (newResults.length > 0) {
+          setSelectedItemId("search-0");
+        } else {
+          setSelectedItemId(undefined);
+        }
       } catch {
         setSearchResults([]);
+        setSelectedItemId(undefined);
       } finally {
         setIsSearching(false);
       }
@@ -126,7 +136,7 @@ export default function Command() {
 
   async function updateRecents(folderName: string, folderPath: string) {
     const filtered = recents.filter((r) => r.path !== folderPath);
-    const updated = [{ name: folderName, path: folderPath }, ...filtered].slice(0, 5);
+    const updated = [{ name: folderName, path: folderPath }, ...filtered].slice(0, 4);
     setRecents(updated);
     await LocalStorage.setItem("recents", JSON.stringify(updated));
   }
@@ -226,6 +236,12 @@ export default function Command() {
     await showToast({ title: "Removed from favorites" });
   }
 
+  async function clearRecents() {
+    setRecents([]);
+    await LocalStorage.removeItem("recents");
+    await showToast({ title: "Recent folders cleared" });
+  }
+
   const fileCount = selectedFiles.length;
   const subtitle = fileCount > 0 ? `${fileCount} file(s) selected` : "No files selected";
 
@@ -234,10 +250,117 @@ export default function Command() {
       ? `### Files to Move / Copy\n\n${selectedFiles
           .map((f) => `- **${path.basename(f)}**\n  \n  \`${f}\``)
           .join("\n\n")}`
-      : `No files selected.`;
+      : `### No files selected.\n\nOpen Finder and select files to move or copy them, or use this extension to manage your favorites.`;
+
+  function getFolderDetail(folderPath: string) {
+    return (
+      <List.Item.Detail
+        markdown={detailMarkdown}
+        metadata={
+          <List.Item.Detail.Metadata>
+            <List.Item.Detail.Metadata.Label title="Destination" text={folderPath} />
+          </List.Item.Detail.Metadata>
+        }
+      />
+    );
+  }
+
+  function FolderActionPanel({ folder, isRecent }: { folder: { name: string; path: string }; isRecent?: boolean }) {
+    if (fileCount === 0) {
+      return (
+        <ActionPanel>
+          <Action.Push
+            title="Add to Favorites"
+            icon={Icon.Star}
+            target={<AddFavoriteForm onAddFavorite={addFavorite} />}
+          />
+          <Action.Push
+            title="Move to Custom Folder…"
+            icon={Icon.Folder}
+            target={<MoveToCustomFolderForm onAction={handleAction} />}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
+          />
+          {favorites.some((f) => f.path === folder.path) && (
+            <Action
+              title="Remove from Favorites"
+              icon={Icon.Trash}
+              onAction={() => removeFavorite(folder.path)}
+              style={Action.Style.Destructive}
+              shortcut={{ modifiers: ["ctrl"], key: "x" }}
+            />
+          )}
+          {isRecent && (
+            <Action
+              title="Clear All Recents"
+              icon={Icon.Trash}
+              onAction={clearRecents}
+              style={Action.Style.Destructive}
+              shortcut={{ modifiers: ["ctrl", "shift"], key: "x" }}
+            />
+          )}
+        </ActionPanel>
+      );
+    }
+
+    return (
+      <ActionPanel>
+        <Action
+          title="Move Files Here"
+          icon={Icon.ArrowRight}
+          onAction={() => handleAction(folder.path, folder.name, false)}
+        />
+        <Action
+          title="Copy Files Here"
+          icon={Icon.CopyClipboard}
+          onAction={() => handleAction(folder.path, folder.name, true)}
+          shortcut={{ modifiers: ["cmd"], key: "d" }}
+        />
+        <Action.Push
+          title="Move to New Folder…"
+          icon={Icon.NewFolder}
+          target={<MoveToNewFolderForm onAction={handleAction} />}
+          shortcut={{ modifiers: ["cmd"], key: "n" }}
+        />
+        <Action.Push
+          title="Move to Custom Folder…"
+          icon={Icon.Folder}
+          target={<MoveToCustomFolderForm onAction={handleAction} />}
+          shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
+        />
+        <Action.Push
+          title="Add to Favorites"
+          icon={Icon.Star}
+          target={<AddFavoriteForm onAddFavorite={addFavorite} />}
+          shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+        />
+        {favorites.some((f) => f.path === folder.path) && (
+          <Action
+            title="Remove from Favorites"
+            icon={Icon.Trash}
+            onAction={() => removeFavorite(folder.path)}
+            style={Action.Style.Destructive}
+            shortcut={{ modifiers: ["ctrl"], key: "x" }}
+          />
+        )}
+        {isRecent && (
+          <Action
+            title="Clear All Recents"
+            icon={Icon.Trash}
+            onAction={clearRecents}
+            style={Action.Style.Destructive}
+            shortcut={{ modifiers: ["ctrl", "shift"], key: "x" }}
+          />
+        )}
+      </ActionPanel>
+    );
+  }
 
   return (
     <List
+      selectedItemId={selectedItemId}
+      onSelectionChange={(id) => {
+        if (id !== selectedItemId) setSelectedItemId(id || undefined);
+      }}
       isLoading={isLoading || isSearching}
       searchText={searchText}
       onSearchTextChange={setSearchText}
@@ -252,129 +375,54 @@ export default function Command() {
         />
       )}
 
-      {fileCount > 0 && (
+      {!isLoading && (
         <>
           {searchResults.length > 0 && (
             <List.Section title="Search Results">
               {searchResults.map((folder, index) => (
                 <List.Item
                   key={`search-${index}`}
+                  id={`search-${index}`}
                   title={folder.name}
                   subtitle={folder.path}
-                  icon={Icon.MagnifyingGlass}
-                  detail={<List.Item.Detail markdown={detailMarkdown} />}
-                  actions={
-                    <ActionPanel>
-                      <Action
-                        title="Move Files Here"
-                        icon={Icon.ArrowRight}
-                        onAction={() => handleAction(folder.path, folder.name, false)}
-                      />
-                      <Action
-                        title="Copy Files Here"
-                        icon={Icon.CopyClipboard}
-                        onAction={() => handleAction(folder.path, folder.name, true)}
-                        shortcut={{ modifiers: ["cmd"], key: "d" }}
-                      />
-                    </ActionPanel>
-                  }
+                  icon={Icon.Folder}
+                  accessories={[{ text: path.dirname(folder.path), tooltip: folder.path }]}
+                  detail={getFolderDetail(folder.path)}
+                  actions={<FolderActionPanel folder={folder} />}
                 />
               ))}
             </List.Section>
           )}
 
-          {recents.length > 0 && (
-            <List.Section title="Recent Folders" subtitle={subtitle}>
-              {recents.map((folder, index) => (
-                <List.Item
-                  key={`recent-${index}`}
-                  title={folder.name}
-                  subtitle={folder.path}
-                  icon={Icon.Clock}
-                  detail={<List.Item.Detail markdown={detailMarkdown} />}
-                  actions={
-                    <ActionPanel>
-                      <Action
-                        title="Move Files Here"
-                        icon={Icon.ArrowRight}
-                        onAction={() => handleAction(folder.path, folder.name, false)}
-                      />
-                      <Action
-                        title="Copy Files Here"
-                        icon={Icon.CopyClipboard}
-                        onAction={() => handleAction(folder.path, folder.name, true)}
-                        shortcut={{ modifiers: ["cmd"], key: "d" }}
-                      />
-                      <Action.Push
-                        title="Move to New Folder…"
-                        icon={Icon.NewFolder}
-                        target={<MoveToNewFolderForm onAction={handleAction} />}
-                        shortcut={{ modifiers: ["cmd"], key: "n" }}
-                      />
-                      <Action.Push
-                        title="Move to Custom Folder…"
-                        icon={Icon.Folder}
-                        target={<MoveToCustomFolderForm onAction={handleAction} />}
-                        shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
-                      />
-                    </ActionPanel>
-                  }
-                />
-              ))}
-            </List.Section>
-          )}
-
-          <List.Section title="Favorites" subtitle={recents.length === 0 ? subtitle : ""}>
+          <List.Section title="Favorites" subtitle={subtitle}>
             {favorites.map((fav, index) => (
               <List.Item
                 key={`fav-${index}`}
                 title={fav.name}
                 subtitle={fav.path}
                 icon={Icon.Star}
-                detail={<List.Item.Detail markdown={detailMarkdown} />}
-                actions={
-                  <ActionPanel>
-                    <Action
-                      title="Move Files Here"
-                      icon={Icon.ArrowRight}
-                      onAction={() => handleAction(fav.path, fav.name, false)}
-                    />
-                    <Action
-                      title="Copy Files Here"
-                      icon={Icon.CopyClipboard}
-                      onAction={() => handleAction(fav.path, fav.name, true)}
-                      shortcut={{ modifiers: ["cmd"], key: "d" }}
-                    />
-                    <Action.Push
-                      title="Move to New Folder…"
-                      icon={Icon.NewFolder}
-                      target={<MoveToNewFolderForm onAction={handleAction} />}
-                      shortcut={{ modifiers: ["cmd"], key: "n" }}
-                    />
-                    <Action.Push
-                      title="Move to Custom Folder…"
-                      icon={Icon.Folder}
-                      target={<MoveToCustomFolderForm onAction={handleAction} />}
-                      shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
-                    />
-                    <Action.Push
-                      title="Add New Favorite…"
-                      icon={Icon.Plus}
-                      target={<AddFavoriteForm onAddFavorite={addFavorite} />}
-                      shortcut={{ modifiers: ["cmd", "shift"], key: "n" }}
-                    />
-                    <Action
-                      title="Remove Favorite"
-                      icon={Icon.Trash}
-                      onAction={() => removeFavorite(fav.path)}
-                      shortcut={{ modifiers: ["ctrl"], key: "x" }}
-                      style={Action.Style.Destructive}
-                    />
-                  </ActionPanel>
-                }
+                accessories={[{ text: path.dirname(fav.path), tooltip: fav.path }]}
+                detail={getFolderDetail(fav.path)}
+                actions={<FolderActionPanel folder={fav} />}
               />
             ))}
           </List.Section>
+
+          {recents.length > 0 && (
+            <List.Section title="Recent Folders" subtitle={favorites.length === 0 ? subtitle : ""}>
+              {recents.map((folder, index) => (
+                <List.Item
+                  key={`recent-${index}`}
+                  title={folder.name}
+                  subtitle={folder.path}
+                  icon={Icon.Clock}
+                  accessories={[{ text: path.dirname(folder.path), tooltip: folder.path }]}
+                  detail={getFolderDetail(folder.path)}
+                  actions={<FolderActionPanel folder={folder} isRecent={true} />}
+                />
+              ))}
+            </List.Section>
+          )}
 
           <List.Section title="Default Folders">
             {DEFAULT_FOLDERS.map((folder, index) => (
