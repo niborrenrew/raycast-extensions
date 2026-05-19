@@ -146,7 +146,9 @@ export default function Command() {
       await fs.promises.mkdir(destFolder, { recursive: true });
     }
 
-    let processedCount = 0;
+    const errors: { file: string; error: string }[] = [];
+    let successCount = 0;
+
     for (const src of files) {
       try {
         const basename = path.basename(src);
@@ -176,22 +178,25 @@ export default function Command() {
               try {
                 await fs.promises.rm(src, { recursive: true });
               } catch (rmError) {
-                throw new Error(`File copied to destination, but failed to remove original: ${rmError}`);
+                throw new Error(
+                  `File copied, but failed to remove original: ${rmError instanceof Error ? rmError.message : String(rmError)}`,
+                );
               }
             } else {
               throw e;
             }
           }
         }
-        processedCount++;
+        successCount++;
       } catch (e) {
-        throw new Error(
-          `Partial failure: ${processedCount} of ${files.length} files successfully processed before error. Check destination folder. Underlying error: ${
-            e instanceof Error ? e.message : String(e)
-          }`,
-        );
+        errors.push({
+          file: path.basename(src),
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
+
+    return { successCount, errors };
   }
 
   async function handleAction(destinationPath: string, folderName: string, isCopy: boolean) {
@@ -205,14 +210,27 @@ export default function Command() {
     }
 
     try {
-      await safeMoveOrCopy(selectedFiles, destinationPath, isCopy);
-      await updateRecents(folderName, destinationPath);
-      await showToast({
-        style: Toast.Style.Success,
-        title: `Files ${isCopy ? "copied" : "moved"} successfully`,
-      });
-      await closeMainWindow();
-      await popToRoot();
+      const { successCount, errors } = await safeMoveOrCopy(selectedFiles, destinationPath, isCopy);
+
+      if (successCount > 0) {
+        await updateRecents(folderName, destinationPath);
+      }
+
+      if (errors.length > 0) {
+        const errorMsg = errors.map((err) => `"${err.file}": ${err.error}`).join("; ");
+        await showToast({
+          style: Toast.Style.Failure,
+          title: `Failed to ${isCopy ? "copy" : "move"} some files`,
+          message: `Processed ${successCount} of ${selectedFiles.length} files. Errors: ${errorMsg}`,
+        });
+      } else {
+        await showToast({
+          style: Toast.Style.Success,
+          title: `Files ${isCopy ? "copied" : "moved"} successfully`,
+        });
+        await closeMainWindow();
+        await popToRoot();
+      }
     } catch (e) {
       await showToast({
         style: Toast.Style.Failure,
